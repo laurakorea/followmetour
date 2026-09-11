@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from DESIGN.md.
+ * Keep this file and DESIGN.md in sync — DESIGN.md is the source of truth,
+ * this is its CSS implementation.
+ */
+:root {
+  /* brand */
+  --rose-600: #e31c4d;
+  --rose-700: #b0123a;
+  --rose-100: #fce8ed;
+
+  /* neutrals (warm, not pure white/black) */
+  --paper: #faf9f7;
+  --surface: #ffffff;
+  --ink-900: #1c1d24;
+  --ink-700: #454852;
+  --ink-500: #7a7d87;
+  --line: #e7e4e0;
+  --line-strong: #d2cec8;
+
+  /* semantic (admin only — never reuse for brand accents) */
+  --good: #2f7d4f;
+  --good-wash: #e4f0e7;
+  --warn: #b9832a;
+  --warn-wash: #f5ebd8;
+  --critical: #c2410c;
+  --critical-wash: #fbe8de;
+
+  /* radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-full: 999px;
+}
+
+@theme inline {
+  --color-rose-600: var(--rose-600);
+  --color-rose-700: var(--rose-700);
+  --color-rose-100: var(--rose-100);
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-good: var(--good);
+  --color-good-wash: var(--good-wash);
+  --color-warn: var(--warn);
+  --color-warn-wash: var(--warn-wash);
+  --color-critical: var(--critical);
+  --color-critical-wash: var(--critical-wash);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-full: var(--radius-full);
+
+  --font-display: var(--font-gowun-dodum);
+  --font-body: var(--font-plex-sans-kr);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink-700);
+  font-family: var(--font-body), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
