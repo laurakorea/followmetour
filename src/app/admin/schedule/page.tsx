@@ -10,6 +10,8 @@ import {
   SAMPLE_RESERVATIONS,
   SAMPLE_SCHEDULES,
   SAMPLE_TOURS,
+  SCHEDULE_CAPACITY_STORAGE_KEY,
+  SCHEDULE_GUIDES_STORAGE_KEY,
   type AttendanceMark,
   type Reservation,
   type ReservationStatus,
@@ -62,8 +64,6 @@ const MOCK_TODAY = { year: 2026, month: 8, day: 17 }; // month은 0-indexed (8 =
 // Supabase 연결 전 임시 저장소. 이 브라우저에만 남고, 다른 직원·기기와는 공유되지 않는다.
 const NOTES_STORAGE_KEY = "fmt-admin-schedule-notes";
 const CHECKED_STORAGE_KEY = "fmt-admin-schedule-checked";
-const GUIDES_STORAGE_KEY = "fmt-admin-schedule-guides";
-const CAPACITY_STORAGE_KEY = "fmt-admin-schedule-capacity";
 const SETTLED_STORAGE_KEY = "fmt-admin-schedule-settled";
 const ATTENDANCE_STORAGE_KEY = "fmt-admin-schedule-attendance";
 const ONSITE_CASH_STORAGE_KEY = "fmt-admin-schedule-onsite-cash";
@@ -154,8 +154,8 @@ export default function AdminSchedulePage() {
     try {
       const savedNotes = localStorage.getItem(NOTES_STORAGE_KEY);
       const savedChecked = localStorage.getItem(CHECKED_STORAGE_KEY);
-      const savedGuides = localStorage.getItem(GUIDES_STORAGE_KEY);
-      const savedCapacity = localStorage.getItem(CAPACITY_STORAGE_KEY);
+      const savedGuides = localStorage.getItem(SCHEDULE_GUIDES_STORAGE_KEY);
+      const savedCapacity = localStorage.getItem(SCHEDULE_CAPACITY_STORAGE_KEY);
       const savedSettled = localStorage.getItem(SETTLED_STORAGE_KEY);
       const savedAttendance = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
       const savedMiscIncome = localStorage.getItem(ONSITE_CASH_STORAGE_KEY);
@@ -221,7 +221,7 @@ export default function AdminSchedulePage() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(GUIDES_STORAGE_KEY, JSON.stringify(guideAssignments));
+      localStorage.setItem(SCHEDULE_GUIDES_STORAGE_KEY, JSON.stringify(guideAssignments));
     } catch {
       // 저장 실패는 조용히 무시 — 화면 동작에는 영향 없음
     }
@@ -230,7 +230,7 @@ export default function AdminSchedulePage() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(CAPACITY_STORAGE_KEY, JSON.stringify(capacityOverrides));
+      localStorage.setItem(SCHEDULE_CAPACITY_STORAGE_KEY, JSON.stringify(capacityOverrides));
     } catch {
       // 저장 실패는 조용히 무시 — 화면 동작에는 영향 없음
     }
@@ -493,8 +493,12 @@ export default function AdminSchedulePage() {
     const tour = SAMPLE_TOURS.find((t) => t.id === newTourForm.tourId);
     if (!tour) return;
     const capacity = Math.max(0, Math.round(Number(newTourForm.capacity)) || 0);
+    // 같은 날 같은 투어를 여러 번 열 수도 있다(버스 회차를 나눠서 등) — 이미
+    // 그 투어가 그 날짜에 있으면 id 뒤에 번호를 붙여서 겹치지 않게 만든다.
+    const sameTourCount = (schedulesByDate.get(openTourDate) ?? []).filter((s) => s.tourId === tour.id).length;
+    const id = sameTourCount === 0 ? `${tour.id}-${openTourDate}` : `${tour.id}-${openTourDate}-${sameTourCount + 1}`;
     const schedule: Schedule = {
-      id: `${tour.id}-${openTourDate}`,
+      id,
       tourId: tour.id,
       tourName: tour.name,
       date: openTourDate,
@@ -719,7 +723,7 @@ export default function AdminSchedulePage() {
                   <input
                     value={item.label}
                     onChange={(e) => updateMiscItem(setter, key, idx, "label", e.target.value)}
-                    placeholder="항목 (예: 손님 이름)"
+                    placeholder="항목 (예: 로컬비)"
                     className="rounded-sm border border-line px-2 py-1 text-sm focus:border-line-strong focus:outline-none"
                   />
                   <input
@@ -767,7 +771,7 @@ export default function AdminSchedulePage() {
         </p>
 
         <div className="mt-3">
-          <p className="text-xs font-medium text-ink-900">현금</p>
+          <p className="text-xs font-medium text-ink-900">기타</p>
           {renderRows(onsiteCash, setOnsiteCash)}
         </div>
 
@@ -924,13 +928,13 @@ export default function AdminSchedulePage() {
                       );
                     })}
                     {(() => {
-                      const openedTourIds = new Set(daySchedules.map((s) => s.tourId));
-                      const availableTours = SAMPLE_TOURS.filter((t) => !openedTourIds.has(t.id));
-                      if (availableTours.length === 0) return null;
+                      // 같은 날 같은 투어를 또 열 수도 있으니(버스 회차 추가 등)
+                      // 이미 열린 투어가 있어도 버튼은 항상 보여준다.
+                      const defaultTourId = SAMPLE_TOURS[0]?.id ?? "";
                       return (
                         <button
                           type="button"
-                          onClick={() => openTourOpenModal(key, availableTours[0].id)}
+                          onClick={() => openTourOpenModal(key, defaultTourId)}
                           className="rounded-sm border border-dashed border-line-strong px-1.5 py-1 text-left text-[10px] text-ink-500 hover:border-rose-600 hover:text-rose-700"
                         >
                           + 투어 오픈
@@ -1077,7 +1081,7 @@ export default function AdminSchedulePage() {
               </div>
             </div>
             <p className="mt-1 text-sm text-ink-700">
-              {rosterSchedule.tourName} · {rosterSchedule.date} {rosterSchedule.startTime}
+              {rosterSchedule.tourName} · {rosterSchedule.date}
             </p>
             <p className="text-xs text-ink-500">
               예약 {getRoster(rosterSchedule.id).length}건 · 총 {bookedHeadcount(rosterSchedule.id)}명(취소 제외) ·
@@ -1276,9 +1280,7 @@ export default function AdminSchedulePage() {
                 onChange={(e) => setNewTourForm((prev) => ({ ...prev, tourId: e.target.value }))}
                 className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
               >
-                {SAMPLE_TOURS.filter(
-                  (t) => !(schedulesByDate.get(openTourDate) ?? []).some((s) => s.tourId === t.id),
-                ).map((t) => (
+                {SAMPLE_TOURS.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>

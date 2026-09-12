@@ -43,10 +43,8 @@ type FormState = {
   advanceDepositKrw: string;
   onSitePaymentEur: string;
   headcount: string;
-  detailBreakdown: LabeledEntry[];
   channel: ReservationChannel;
   partnerName: string;
-  earlyBirdDiscount: boolean;
   optionItems: LabeledEntry[];
 };
 
@@ -62,10 +60,8 @@ function emptyForm(): FormState {
     advanceDepositKrw: "",
     onSitePaymentEur: "",
     headcount: "1",
-    detailBreakdown: [{ ...EMPTY_ENTRY }],
     channel: "staff_entry",
     partnerName: "",
-    earlyBirdDiscount: false,
     optionItems: [{ ...EMPTY_ENTRY }],
   };
 }
@@ -83,10 +79,8 @@ function formFromReservation(r: Reservation): FormState {
     advanceDepositKrw: String(r.advanceDepositKrw),
     onSitePaymentEur: String(r.onSitePaymentEur),
     headcount: String(r.headcount),
-    detailBreakdown: r.detailBreakdown && r.detailBreakdown.length > 0 ? r.detailBreakdown : [{ ...EMPTY_ENTRY }],
     channel: r.channel,
     partnerName: r.partnerName ?? "",
-    earlyBirdDiscount: r.earlyBirdDiscount ?? false,
     optionItems: r.optionItems && r.optionItems.length > 0 ? r.optionItems : [{ ...EMPTY_ENTRY }],
   };
 }
@@ -157,18 +151,18 @@ export default function AdminReservationsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateEntry(listKey: "detailBreakdown" | "optionItems", index: number, field: keyof LabeledEntry, value: string) {
+  function updateEntry(listKey: "optionItems", index: number, field: keyof LabeledEntry, value: string) {
     setForm((prev) => ({
       ...prev,
       [listKey]: prev[listKey].map((item, i) => (i === index ? { ...item, [field]: value } : item)),
     }));
   }
 
-  function addEntry(listKey: "detailBreakdown" | "optionItems") {
+  function addEntry(listKey: "optionItems") {
     setForm((prev) => ({ ...prev, [listKey]: [...prev[listKey], { ...EMPTY_ENTRY }] }));
   }
 
-  function removeEntry(listKey: "detailBreakdown" | "optionItems", index: number) {
+  function removeEntry(listKey: "optionItems", index: number) {
     setForm((prev) => ({
       ...prev,
       [listKey]: prev[listKey].length > 1 ? prev[listKey].filter((_, i) => i !== index) : prev[listKey],
@@ -216,8 +210,6 @@ export default function AdminReservationsPage() {
       onSitePaymentEur: numberOrZero(form.onSitePaymentEur),
       registeredAt: original?.registeredAt ?? new Date().toISOString().slice(0, 16).replace("T", " "),
       attended: original?.attended ?? null,
-      earlyBirdDiscount: form.earlyBirdDiscount,
-      detailBreakdown: form.detailBreakdown.filter((entry) => entry.label.trim() || entry.value.trim()),
       optionItems: form.optionItems.filter((entry) => entry.label.trim() || entry.value.trim()),
     };
 
@@ -443,45 +435,6 @@ export default function AdminReservationsPage() {
                 />
               </label>
 
-              <div>
-                <p className="mb-1.5 text-sm text-ink-700">상세 인원</p>
-                <div className="flex flex-col gap-1.5">
-                  {form.detailBreakdown.map((entry, idx) => (
-                    <div key={idx} className="flex items-center gap-1.5">
-                      <input
-                        value={entry.label}
-                        onChange={(e) => updateEntry("detailBreakdown", idx, "label", e.target.value)}
-                        placeholder="구분 (예: 성인)"
-                        className="flex-1 rounded-sm border border-line px-2 py-1 text-sm focus:border-line-strong focus:outline-none"
-                      />
-                      <input
-                        value={entry.value}
-                        onChange={(e) => updateEntry("detailBreakdown", idx, "value", e.target.value)}
-                        placeholder="인원수"
-                        inputMode="numeric"
-                        className="w-20 rounded-sm border border-line px-2 py-1 text-sm font-mono focus:border-line-strong focus:outline-none"
-                      />
-                      {form.detailBreakdown.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeEntry("detailBreakdown", idx)}
-                          aria-label="행 삭제"
-                          className="text-ink-500 hover:text-critical"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => addEntry("detailBreakdown")}
-                  className="mt-1.5 rounded-sm border border-line px-2.5 py-1 text-xs text-ink-700 hover:bg-paper"
-                >
-                  행 추가
-                </button>
-              </div>
             </fieldset>
 
             <fieldset className="flex flex-col gap-3 border-t border-line pt-4">
@@ -511,16 +464,6 @@ export default function AdminReservationsPage() {
                   </label>
                 )}
               </div>
-
-              <label className="flex items-center gap-2 text-sm text-ink-700">
-                <input
-                  type="checkbox"
-                  checked={form.earlyBirdDiscount}
-                  onChange={(e) => updateField("earlyBirdDiscount", e.target.checked)}
-                  className="h-3.5 w-3.5 accent-rose-600"
-                />
-                얼리버드 할인 적용
-              </label>
             </fieldset>
 
             <fieldset className="flex flex-col gap-3 border-t border-line pt-4">

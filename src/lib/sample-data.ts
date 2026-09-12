@@ -7,16 +7,39 @@
  */
 
 export type StaffRole = "admin" | "guide";
+// 재직 중 / 이전 직원 — 그만둔 사람도 기록은 지우지 않고 "이전 직원"으로만
+// 옮겨둔다(2026-09-13 확인).
+export type StaffStatus = "active" | "former";
 
-export const SAMPLE_STAFF = [
-  { id: "s1", name: "이관리", role: "admin" as StaffRole, phone: "010-1111-2222" },
-  { id: "s2", name: "박정훈", role: "guide" as StaffRole, phone: "010-2222-3333" },
-  { id: "s3", name: "김건우", role: "guide" as StaffRole, phone: "010-3333-4444" },
-  { id: "s4", name: "노신", role: "guide" as StaffRole, phone: "010-4444-5555" },
-  { id: "s5", name: "김보성", role: "guide" as StaffRole, phone: "010-5555-6666" },
-  { id: "s6", name: "박정현", role: "guide" as StaffRole, phone: "010-6666-7777" },
-  { id: "s7", name: "현병국", role: "guide" as StaffRole, phone: "010-7777-8888" },
+export type Staff = {
+  id: string;
+  name: string;
+  role: StaffRole;
+  phone: string;
+  status: StaffStatus;
+  // 가이드 로그인(guide/login)용 PIN — 관리자가 계정 화면에서 지정·확인한다
+  // (2026-09-13 확인). 실제 인증이 붙기 전까지의 데모용 비밀번호.
+  pin: string;
+};
+
+export const SAMPLE_STAFF: Staff[] = [
+  { id: "s1", name: "이관리", role: "admin", phone: "010-1111-2222", status: "active", pin: "2222" },
+  { id: "s2", name: "박정훈", role: "guide", phone: "010-2222-3333", status: "active", pin: "3333" },
+  { id: "s3", name: "김건우", role: "guide", phone: "010-3333-4444", status: "active", pin: "4444" },
+  { id: "s4", name: "노신", role: "guide", phone: "010-4444-5555", status: "active", pin: "5555" },
+  { id: "s5", name: "김보성", role: "guide", phone: "010-5555-6666", status: "active", pin: "6666" },
+  { id: "s6", name: "박정현", role: "guide", phone: "010-6666-7777", status: "active", pin: "7777" },
+  { id: "s7", name: "현병국", role: "guide", phone: "010-7777-8888", status: "active", pin: "8888" },
 ];
+
+// 계정 화면에서 관리자가 새로 추가한 직원(전체 레코드, 자유롭게 수정 가능).
+export const ADDED_STAFF_STORAGE_KEY = "fmt-added-staff";
+// 표본 직원(SAMPLE_STAFF)은 상수라 직접 못 바꾸니, 수정한 내용은 id -> 통째로
+// 바뀐 직원 정보로 이 오버라이드 맵에 저장한다(정산서 수정과 같은 패턴).
+export const STAFF_EDITS_STORAGE_KEY = "fmt-staff-edits";
+// id -> 재직 상태(재직 중/이전 직원). 표본·추가 직원 공통으로 이 맵 하나로
+// 관리한다 — 레코드 자체는 절대 지우지 않고 상태만 옮긴다.
+export const STAFF_STATUS_STORAGE_KEY = "fmt-staff-status";
 
 export const SAMPLE_TOURS = [
   { id: "t1", name: "가우디 마스터패스 투어", region: "Barcelona", isCustomerVisible: true, myRealTripUrl: "https://www.myrealtrip.com/offers/12345" },
@@ -67,6 +90,22 @@ export type Schedule = {
 // 관리자가 캘린더에서 빈 날짜에 "투어 오픈"으로 새로 만든 스케줄. 이 브라우저의
 // localStorage에 저장되고, SAMPLE_SCHEDULES와 합쳐서 보여준다.
 export const ADDED_SCHEDULES_STORAGE_KEY = "fmt-added-schedules";
+
+// scheduleId -> 배정된 가이드 이름 목록(관리자가 배정 창에서 고친 값). 일정
+// 페이지와 가이드배정확인 페이지가 같은 키를 읽어서 같은 배정을 본다.
+export const SCHEDULE_GUIDES_STORAGE_KEY = "fmt-admin-schedule-guides";
+
+// scheduleId -> 정원(관리자가 배정 창에서 직접 고친 값). 일정 페이지와
+// 월별인원관리 페이지가 같은 키를 읽어서 같은 정원을 본다.
+export const SCHEDULE_CAPACITY_STORAGE_KEY = "fmt-admin-schedule-capacity";
+
+// 투어별 실제 진행 시간(관리자 확인, 2026-09-12) — 가이드배정확인에서
+// "몇 번 · 몇 시간" 집계할 때 쓴다. 목록에 없는 투어는 0시간으로 취급한다.
+export const TOUR_DURATION_HOURS: Record<string, number> = {
+  t1: 6.5, // 가우디 마스터패스 투어
+  t2: 5, // 가우디 핵심 버스 투어
+  t3: 1, // 바르셀로나 야간산책투어
+};
 
 export const SAMPLE_SCHEDULES: Schedule[] = Array.from({ length: 30 }, (_, i) => i + 1).flatMap((day) => {
   const date = `2026-09-${pad2(day)}`;
@@ -209,8 +248,173 @@ export const SAMPLE_LEDGER_ENTRIES = [
   { id: "l2", scheduleId: "sc2", tourName: "가우디 핵심 버스 투어", date: "2026-09-01", guideName: "박정현", headcount: 15, tourFee: 0, ticketFee: 270, miscIncome: 0, miscExpense: 96, settlement: 174 },
 ];
 
-export const SAMPLE_TICKET_ENTRIES = [
-  { id: "tk1", venue: "성당 (사그라다 파밀리아)", date: "2026-09-01", tourName: "가우디 핵심 버스 투어", direction: "income" as const, channel: "customer", amount: 270 },
-  { id: "tk2", venue: "공원 (구엘공원)", date: "2026-09-01", tourName: "가우디 마스터패스 투어", direction: "income" as const, channel: "customer", amount: 2444 },
-  { id: "tk3", venue: "성당 (사그라다 파밀리아)", date: "2026-09-02", tourName: "가우디 마스터패스 투어", direction: "expense" as const, channel: "lacaixa", amount: 900 },
+/**
+ * 정산 > 영수증 관리. 기존에는 구글 시트(타임스탬프/성함/급여 수령일/영수증
+ * 사용한 날짜/사유/총 금액/영수증 캡처사진 첨부 열)로 관리하던 걸 그대로
+ * 옮긴다(2026-09-12 확인). 가이드가 자기 계정에서 사진+금액을 올리면
+ * 관리자 쪽 화면에 뜨고, 가이드 본인도 자기가 올린 내역을 다시 볼 수 있어야
+ * 한다. 사진은 백엔드가 없어서 지금은 브라우저에 data URL로만 저장 —
+ * 실제 파일 스토리지(Supabase Storage 등)는 스키마 확정 단계에서 붙인다.
+ */
+export type Receipt = {
+  id: string;
+  guideName: string;
+  submittedAt: string; // 타임스탬프 — 제출 시각(ISO)
+  payoutDate: string; // 급여 수령일 (YYYY-MM-DD)
+  usedDate: string; // 영수증 사용한 날짜 (YYYY-MM-DD)
+  reason: string; // 사유
+  amountKrw: number; // 총 금액(₩)
+  photoDataUrl: string; // 영수증 캡처사진 — data URL
+};
+
+// Supabase Auth가 아직 없어서(2026-09-13 확인), 가이드 로그인 화면
+// (guide/login)에서 "성함 + PIN(연락처 뒷 4자리, 데모용)"을 확인한 뒤 여기에
+// 로그인한 가이드 이름을 저장한다. guide/layout이 이 키를 보고 없으면
+// guide/login으로 돌려보낸다 — 다른 가이드 이름으로 바꿔볼 수 없고, 로그인한
+// 본인 것만 보인다. 실제 인증이 붙으면 이 키는 지운다.
+export const GUIDE_CURRENT_NAME_STORAGE_KEY = "fmt-guide-current-name";
+
+// 가이드 로그인 화면의 이름 선택지. "관리자"는 미배정 자리표시자라 여기서는 뺀다.
+export const GUIDE_NAMES = SAMPLE_STAFF.filter((s) => s.role === "guide").map((s) => s.name);
+
+// 가이드가 새로 올린 영수증. 관리자 페이지와 가이드 페이지가 같은 키를
+// 읽고 써서 두 화면이 같은 목록을 본다.
+export const ADDED_RECEIPTS_STORAGE_KEY = "fmt-added-receipts";
+// receiptId -> 관리자가 "확인" 체크한 여부. 표본 영수증(SAMPLE_RECEIPTS)은
+// 읽기 전용이라 별도 오버라이드 맵으로 관리한다(예약 수정 내역과 같은 패턴).
+export const RECEIPT_CHECKED_STORAGE_KEY = "fmt-receipt-checked";
+
+// 목업 초기 데이터 — 실제 시트에 있던 스타일을 참고한 예시 몇 건.
+export const SAMPLE_RECEIPTS: Receipt[] = [
+  {
+    id: "rcpt1",
+    guideName: "박정훈",
+    submittedAt: "2026-09-05T10:22:00",
+    payoutDate: "2026-09-25",
+    usedDate: "2026-09-04",
+    reason: "대성당 입장권",
+    amountKrw: 18000,
+    photoDataUrl: "",
+  },
+  {
+    id: "rcpt2",
+    guideName: "김건우",
+    submittedAt: "2026-09-08T21:05:00",
+    payoutDate: "2026-09-25",
+    usedDate: "2026-09-08",
+    reason: "현장 교통비(택시)",
+    amountKrw: 9500,
+    photoDataUrl: "",
+  },
+];
+
+/**
+ * 정산 > 가이드 정산. 관리자가 주별로 가이드에게 보내는 정산서(2026-09-12
+ * 확인한 예시 이미지 기준) — 가이드가 그 주에 현금으로 갖고 있는 금액(정산금,
+ * 예: 티켓비)과 그중 가이드에게 돌려줄 지급 항목(예: 로컬비)을 나눠 적고,
+ * "정산금 합계 - 지급 합계 = 최종 정산 금액"으로 가이드가 사무실에 갖고 와야
+ * 할 금액을 계산한다. 가이드별로 정산서가 쌓이고, 각 정산서는 그 가이드
+ * 본인만 봐야 한다(2026-09-12 확인) — 지금은 로그인이 없어서 가이드 화면의
+ * "나는 누구" 선택값으로만 걸러서 보여준다.
+ */
+export type SettlementLineItem = { label: string; amount: number };
+
+export type GuideSettlementSheet = {
+  id: string;
+  guideName: string;
+  region: string;
+  periodStart: string; // YYYY-MM-DD
+  periodEnd: string; // YYYY-MM-DD
+  collectedItems: SettlementLineItem[]; // 정산 해당 날짜 · 정산금 — 가이드가 갖고 있는 현금
+  payoutItems: SettlementLineItem[]; // 지급 항목 · 금액 — 가이드에게 돌려줄 경비
+};
+
+// 관리자가 새로 만들거나 고친 정산서. 관리자 페이지와 가이드 페이지가 같은
+// 키를 읽어서 두 화면이 같은 정산서를 본다.
+export const ADDED_GUIDE_SETTLEMENTS_STORAGE_KEY = "fmt-guide-settlements";
+// 표본 정산서(SAMPLE_GUIDE_SETTLEMENTS)는 상수라 직접 못 바꾸니, 수정한 내용은
+// id -> 통째로 바뀐 정산서로 이 오버라이드 맵에 저장한다(예약 수정 내역과
+// 같은 패턴). 화면에서는 표본 대신 이 오버라이드를 우선해서 보여준다.
+export const GUIDE_SETTLEMENT_EDITS_STORAGE_KEY = "fmt-guide-settlement-edits";
+
+// 목업 초기 데이터 — 2026-09-12에 공유받은 실제 정산서 예시를 그대로 옮김.
+export const SAMPLE_GUIDE_SETTLEMENTS: GuideSettlementSheet[] = [
+  {
+    id: "gs1",
+    guideName: "김건우",
+    region: "바르셀로나",
+    periodStart: "2026-09-06",
+    periodEnd: "2026-09-12",
+    collectedItems: [
+      { label: "7일 티켓비", amount: 630 },
+      { label: "8일 티켓비", amount: 2100 },
+      { label: "9일 티켓비", amount: 1500 },
+      { label: "10일 티켓비", amount: 1050 },
+      { label: "11일 티켓비", amount: 1200 },
+    ],
+    payoutItems: [
+      { label: "7일 로컬비", amount: 120 },
+      { label: "8일 로컬비", amount: 60 },
+      { label: "9일 로컬비", amount: 60 },
+      { label: "10일 로컬비", amount: 60 },
+      { label: "11일 로컬비", amount: 60 },
+    ],
+  },
+];
+
+// 정산서 하나를 관리자가 "처리완료"로 체크했는지. 표본·추가분 모두 이 하나의
+// 오버라이드 맵으로 관리한다(영수증 확인 체크와 같은 패턴) — 체크하면 카드가
+// 초록색으로 바뀐다.
+export const GUIDE_SETTLEMENT_COMPLETED_STORAGE_KEY = "fmt-guide-settlement-completed";
+
+/**
+ * 정산 > 가이드 정산 > 급여. 정산서(가이드가 갖고 있던 현금을 사무실에 갖고
+ * 오는 것)와는 반대로, 사무실이 가이드에게 주는 급여 내역을 관리자가
+ * 기록해둔다 — 같은 "가이드 정산" 메뉴 안에서 급여/정산서 두 카테고리로
+ * 나눠 보여준다. 양식은 2026-09-13에 공유받은 실제 급여명세서(월 단위,
+ * 지급항목/공제항목 좌우 2단, "급여계 - 공제합계 = 차감 수령액") 그대로.
+ */
+export type PayslipLineItem = { label: string; amount: number };
+
+export type GuidePayslip = {
+  id: string;
+  guideName: string;
+  region: string; // 지역
+  payMonth: string; // 급여 대상 월, YYYY-MM
+  payDate: string; // 지급일, YYYY-MM-DD
+  paymentItems: PayslipLineItem[]; // 지급항목 · 지급액 (급여, 후기, 통신비, 교통비, 간식비, 인센 등)
+  deductionItems: PayslipLineItem[]; // 공제항목 · 공제액 (세금, 현지통장 이체된 금액 등)
+};
+
+// 관리자가 새로 만들거나 고친 급여명세서. 관리자 페이지와 가이드 페이지가
+// 같은 키를 읽어서 두 화면이 같은 명세서를 본다.
+export const ADDED_GUIDE_PAYSLIPS_STORAGE_KEY = "fmt-guide-payslips";
+// 표본 급여명세서(SAMPLE_GUIDE_PAYSLIPS) 수정 내용 — 정산서와 같은 오버라이드
+// 맵 패턴.
+export const GUIDE_PAYSLIP_EDITS_STORAGE_KEY = "fmt-guide-payslip-edits";
+
+// 급여명세서 하나를 관리자가 "처리완료"(지급 완료)로 체크했는지.
+export const GUIDE_PAYSLIP_COMPLETED_STORAGE_KEY = "fmt-guide-payslip-completed";
+
+// 목업 초기 데이터 — 2026-09-13에 공유받은 실제 급여명세서 예시를 그대로 옮김.
+export const SAMPLE_GUIDE_PAYSLIPS: GuidePayslip[] = [
+  {
+    id: "ps1",
+    guideName: "김건우",
+    region: "바르셀로나",
+    payMonth: "2026-08",
+    payDate: "2026-09-05",
+    paymentItems: [
+      { label: "급여", amount: 2200 },
+      { label: "후기", amount: 1055 },
+      { label: "통신비", amount: 20 },
+      { label: "교통비", amount: 0 },
+      { label: "간식비", amount: 100 },
+      { label: "1%인센", amount: 359.58 },
+    ],
+    deductionItems: [
+      { label: "세금", amount: 92.93 },
+      { label: "현지통장 이체된 금액", amount: 1336.78 },
+    ],
+  },
 ];

@@ -8,6 +8,7 @@ const NAV_GROUPS = [
     label: "예약 운영",
     items: [
       { href: "/admin/schedule", label: "일정" },
+      { href: "/admin/guide-assignments", label: "가이드배정확인" },
       { href: "/admin/reservations", label: "예약" },
     ],
   },
@@ -15,7 +16,9 @@ const NAV_GROUPS = [
     label: "정산",
     items: [
       { href: "/admin/revenue", label: "수입관리" },
-      { href: "/admin/tickets", label: "티켓관리" },
+      { href: "/admin/monthly-headcount", label: "월별인원관리" },
+      { href: "/admin/receipts", label: "영수증 관리" },
+      { href: "/admin/guide-settlements", label: "가이드정산및급여" },
     ],
   },
   {
