@@ -6,6 +6,8 @@ import {
   ADDED_RESERVATIONS_STORAGE_KEY,
   ADDED_SCHEDULES_STORAGE_KEY,
   ASSIGNABLE_GUIDES,
+  DELETED_SCHEDULE_IDS_STORAGE_KEY,
+  DELETED_TOUR_IDS_STORAGE_KEY,
   RESERVATION_EDITS_STORAGE_KEY,
   SAMPLE_RESERVATIONS,
   SAMPLE_SCHEDULES,
@@ -106,6 +108,25 @@ export default function AdminSchedulePage() {
     startTime: "09:00",
     guides: ["관리자"],
   });
+  // 일괄 오픈 창 — 하루하루 "+ 투어 오픈"을 누르는 대신 기간·요일을 골라
+  // 한 번에 여러 날짜의 스케줄을 만든다(2026-09-13 확인).
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkForm, setBulkForm] = useState<{
+    tourId: string;
+    startDate: string;
+    endDate: string;
+    weekdays: boolean[]; // index 0=일 ~ 6=토
+    capacity: string;
+    guides: string[];
+  }>({
+    tourId: SAMPLE_TOURS[0]?.id ?? "",
+    startDate: "",
+    endDate: "",
+    weekdays: [true, true, true, true, true, true, true],
+    capacity: "20",
+    guides: ["관리자"],
+  });
+  const [bulkResult, setBulkResult] = useState<{ opened: number; skipped: number } | null>(null);
   // 메모·체크는 아직 Supabase가 없어 이 브라우저의 localStorage에만 저장한다.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -145,8 +166,19 @@ export default function AdminSchedulePage() {
   // 드래그는 셀 안 텍스트(연락처 등)를 복사하려는 클릭과 부딪혀서 뺐다 — 대신
   // 체크박스로 여러 명을 골라 "이 팀으로 옮기기" 버튼 한 번에 옮긴다.
   const [selectedReservationIds, setSelectedReservationIds] = useState<Set<string>>(new Set());
-  // 표본 스케줄 + "투어 오픈"으로 새로 만든 스케줄을 합친 전체 목록.
-  const allSchedules = useMemo(() => [...SAMPLE_SCHEDULES, ...addedSchedules], [addedSchedules]);
+  // 투어 페이지(admin/tours)에서 관리자가 삭제한 투어 id — "투어 오픈" 창에서
+  // 새로 열 투어를 고를 때 삭제한 투어는 선택지에서 뺀다.
+  const [deletedTourIds, setDeletedTourIds] = useState<string[]>([]);
+  const openableTours = useMemo(() => SAMPLE_TOURS.filter((t) => !deletedTourIds.includes(t.id)), [deletedTourIds]);
+  // 배정 창에서 관리자가 삭제한 스케줄(그 날짜의 투어 하나) id — 예약자가
+  // 0명일 때만 삭제할 수 있다.
+  const [deletedScheduleIds, setDeletedScheduleIds] = useState<string[]>([]);
+  // 표본 스케줄 + "투어 오픈"으로 새로 만든 스케줄을 합친 전체 목록에서
+  // 삭제한 스케줄만 뺀다.
+  const allSchedules = useMemo(
+    () => [...SAMPLE_SCHEDULES, ...addedSchedules].filter((s) => !deletedScheduleIds.includes(s.id)),
+    [addedSchedules, deletedScheduleIds],
+  );
   const openSchedule = allSchedules.find((s) => s.id === openScheduleId) ?? null;
   const rosterSchedule = allSchedules.find((s) => s.id === rosterScheduleId) ?? null;
 
@@ -168,6 +200,10 @@ export default function AdminSchedulePage() {
       const savedAddedReservations = localStorage.getItem(ADDED_RESERVATIONS_STORAGE_KEY);
       const savedReservationEdits = localStorage.getItem(RESERVATION_EDITS_STORAGE_KEY);
       const savedAddedSchedules = localStorage.getItem(ADDED_SCHEDULES_STORAGE_KEY);
+      const savedDeletedTourIds = localStorage.getItem(DELETED_TOUR_IDS_STORAGE_KEY);
+      if (savedDeletedTourIds) setDeletedTourIds(JSON.parse(savedDeletedTourIds));
+      const savedDeletedScheduleIds = localStorage.getItem(DELETED_SCHEDULE_IDS_STORAGE_KEY);
+      if (savedDeletedScheduleIds) setDeletedScheduleIds(JSON.parse(savedDeletedScheduleIds));
       if (savedAddedSchedules) setAddedSchedules(JSON.parse(savedAddedSchedules));
       if (savedAddedReservations) setAddedReservations(JSON.parse(savedAddedReservations));
       if (savedReservationEdits) setReservationEdits(JSON.parse(savedReservationEdits));
@@ -208,6 +244,15 @@ export default function AdminSchedulePage() {
       // 저장 실패는 조용히 무시 — 화면 동작에는 영향 없음
     }
   }, [addedSchedules, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(DELETED_SCHEDULE_IDS_STORAGE_KEY, JSON.stringify(deletedScheduleIds));
+    } catch {
+      // 저장 실패는 조용히 무시 — 화면 동작에는 영향 없음
+    }
+  }, [deletedScheduleIds, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -510,8 +555,81 @@ export default function AdminSchedulePage() {
     closeTourOpenModal();
   }
 
+  function openBulkModal() {
+    setBulkForm({
+      tourId: openableTours[0]?.id ?? "",
+      startDate: "",
+      endDate: "",
+      weekdays: [true, true, true, true, true, true, true],
+      capacity: "20",
+      guides: ["관리자"],
+    });
+    setBulkResult(null);
+    setShowBulkModal(true);
+  }
+
+  function closeBulkModal() {
+    setShowBulkModal(false);
+    setBulkResult(null);
+  }
+
+  function toggleBulkWeekday(index: number) {
+    setBulkForm((prev) => {
+      const next = [...prev.weekdays];
+      next[index] = !next[index];
+      return { ...prev, weekdays: next };
+    });
+  }
+
+  function toggleBulkGuide(name: string, isChecked: boolean) {
+    setBulkForm((prev) => ({
+      ...prev,
+      guides: isChecked ? [...prev.guides, name] : prev.guides.filter((n) => n !== name),
+    }));
+  }
+
+  function submitBulkOpen() {
+    const tour = SAMPLE_TOURS.find((t) => t.id === bulkForm.tourId);
+    if (!tour || !bulkForm.startDate || !bulkForm.endDate) return;
+    const start = new Date(`${bulkForm.startDate}T00:00:00`);
+    const end = new Date(`${bulkForm.endDate}T00:00:00`);
+    if (start > end) return;
+    const capacity = Math.max(0, Math.round(Number(bulkForm.capacity)) || 0);
+
+    const newSchedules: Schedule[] = [];
+    let skipped = 0;
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (!bulkForm.weekdays[d.getDay()]) continue;
+      const dStr = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const alreadyOpen = (schedulesByDate.get(dStr) ?? []).some((s) => s.tourId === tour.id);
+      if (alreadyOpen) {
+        skipped += 1;
+        continue;
+      }
+      newSchedules.push({
+        id: `${tour.id}-${dStr}`,
+        tourId: tour.id,
+        tourName: tour.name,
+        date: dStr,
+        startTime: "09:00",
+        capacity,
+        guideNames: bulkForm.guides.length > 0 ? bulkForm.guides : ["관리자"],
+      });
+    }
+    setAddedSchedules((prev) => [...prev, ...newSchedules]);
+    setBulkResult({ opened: newSchedules.length, skipped });
+  }
+
   function closeAssignmentModal() {
     setOpenScheduleId(null);
+  }
+
+  // 예약자가 0명일 때만 삭제 가능 — 이미 손님이 들어온 스케줄을 지워서
+  // 예약 기록이 붕 뜨는 걸 막는다(2026-09-13 확인).
+  function deleteSchedule(scheduleId: string) {
+    if (bookedHeadcount(scheduleId) !== 0) return;
+    setDeletedScheduleIds((prev) => (prev.includes(scheduleId) ? prev : [...prev, scheduleId]));
+    closeAssignmentModal();
   }
 
   // 표본 예약 3건 + 예약 페이지에서 새로 추가한 예약, 그리고 예약 페이지에서
@@ -827,9 +945,18 @@ export default function AdminSchedulePage() {
             ›
           </button>
         </div>
-        <p className="font-mono text-sm text-ink-900">
-          {viewYear}. {viewMonth + 1}.
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="font-mono text-sm text-ink-900">
+            {viewYear}. {viewMonth + 1}.
+          </p>
+          <button
+            type="button"
+            onClick={openBulkModal}
+            className="rounded-sm bg-rose-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-rose-700"
+          >
+            일괄 오픈
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border border-line">
@@ -930,7 +1057,7 @@ export default function AdminSchedulePage() {
                     {(() => {
                       // 같은 날 같은 투어를 또 열 수도 있으니(버스 회차 추가 등)
                       // 이미 열린 투어가 있어도 버튼은 항상 보여준다.
-                      const defaultTourId = SAMPLE_TOURS[0]?.id ?? "";
+                      const defaultTourId = openableTours[0]?.id ?? "";
                       return (
                         <button
                           type="button"
@@ -1040,6 +1167,20 @@ export default function AdminSchedulePage() {
                 닫기
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => deleteSchedule(openSchedule.id)}
+              disabled={bookedHeadcount(openSchedule.id) !== 0}
+              title={
+                bookedHeadcount(openSchedule.id) !== 0
+                  ? "예약자가 있어 삭제할 수 없습니다"
+                  : "이 날짜의 투어를 삭제합니다"
+              }
+              className="mt-2 w-full rounded-sm border border-line py-1.5 text-xs text-ink-500 hover:border-critical hover:text-critical disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-500"
+            >
+              이 투어 삭제 (예약자 0명일 때만)
+            </button>
           </div>
         </div>
       )}
@@ -1280,7 +1421,7 @@ export default function AdminSchedulePage() {
                 onChange={(e) => setNewTourForm((prev) => ({ ...prev, tourId: e.target.value }))}
                 className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
               >
-                {SAMPLE_TOURS.map((t) => (
+                {openableTours.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
@@ -1330,6 +1471,132 @@ export default function AdminSchedulePage() {
                 className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-700 hover:bg-paper"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"
+          onClick={closeBulkModal}
+        >
+          <div
+            className="w-full max-w-sm rounded-md bg-surface p-5 shadow-[0_1px_2px_rgba(28,29,36,0.06),0_6px_20px_-10px_rgba(28,29,36,0.18)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-ink-900">일괄 오픈</p>
+            <p className="mt-0.5 text-xs text-ink-500">
+              기간과 요일을 고르면 그 안의 날짜에 한 번에 스케줄을 만든다. 이미 그 투어가 열려있는 날은 건너뛴다.
+            </p>
+
+            <label className="mt-3 flex flex-col gap-1 text-sm text-ink-700">
+              투어
+              <select
+                value={bulkForm.tourId}
+                onChange={(e) => setBulkForm((prev) => ({ ...prev, tourId: e.target.value }))}
+                className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
+              >
+                {openableTours.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-sm text-ink-700">
+                시작일
+                <input
+                  type="date"
+                  value={bulkForm.startDate}
+                  onChange={(e) => setBulkForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                  className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-ink-700">
+                종료일
+                <input
+                  type="date"
+                  value={bulkForm.endDate}
+                  onChange={(e) => setBulkForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                  className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3">
+              <p className="mb-1.5 text-sm text-ink-500">반복할 요일</p>
+              <div className="flex gap-1">
+                {WEEKDAY_LABELS.map((label, idx) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => toggleBulkWeekday(idx)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-sm border text-xs ${
+                      bulkForm.weekdays[idx]
+                        ? "border-rose-600 bg-rose-600 text-white"
+                        : "border-line text-ink-500 hover:bg-paper"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="mt-3 flex flex-col gap-1 text-sm text-ink-700">
+              가능인원
+              <input
+                type="number"
+                min={0}
+                value={bulkForm.capacity}
+                onChange={(e) => setBulkForm((prev) => ({ ...prev, capacity: e.target.value }))}
+                className="rounded-sm border border-line px-2 py-1.5 text-sm font-mono focus:border-line-strong focus:outline-none"
+              />
+            </label>
+
+            <div className="mt-4">
+              <p className="mb-1.5 text-sm text-ink-500">가이드선택</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {ASSIGNABLE_GUIDES.map((name) => (
+                  <label key={name} className="flex items-center gap-1.5 text-sm text-ink-700">
+                    <input
+                      type="checkbox"
+                      checked={bulkForm.guides.includes(name)}
+                      onChange={(e) => toggleBulkGuide(name, e.target.checked)}
+                      className="h-3.5 w-3.5 accent-rose-600"
+                    />
+                    {name}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {bulkResult && (
+              <p className="mt-3 rounded-sm bg-good-wash px-3 py-2 text-sm text-good">
+                {bulkResult.opened}일 새로 열었어요
+                {bulkResult.skipped > 0 && ` · ${bulkResult.skipped}일은 이미 열려있어 건너뜀`}
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={submitBulkOpen}
+                disabled={!bulkForm.startDate || !bulkForm.endDate}
+                className="flex-1 rounded-sm bg-rose-600 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                일괄 오픈하기
+              </button>
+              <button
+                type="button"
+                onClick={closeBulkModal}
+                className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-700 hover:bg-paper"
+              >
+                닫기
               </button>
             </div>
           </div>

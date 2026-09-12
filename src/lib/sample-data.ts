@@ -41,12 +41,33 @@ export const STAFF_EDITS_STORAGE_KEY = "fmt-staff-edits";
 // 관리한다 — 레코드 자체는 절대 지우지 않고 상태만 옮긴다.
 export const STAFF_STATUS_STORAGE_KEY = "fmt-staff-status";
 
-export const SAMPLE_TOURS = [
+export type Tour = {
+  id: string;
+  name: string;
+  region: string;
+  isCustomerVisible: boolean;
+  myRealTripUrl: string | null;
+};
+
+export const SAMPLE_TOURS: Tour[] = [
   { id: "t1", name: "가우디 마스터패스 투어", region: "Barcelona", isCustomerVisible: true, myRealTripUrl: "https://www.myrealtrip.com/offers/12345" },
   { id: "t2", name: "가우디 핵심 버스 투어", region: "Barcelona", isCustomerVisible: true, myRealTripUrl: "https://www.myrealtrip.com/offers/12346" },
   { id: "t3", name: "바르셀로나 야간산책투어", region: "Barcelona", isCustomerVisible: true, myRealTripUrl: null },
   { id: "t4", name: "세비야 대성당 투어", region: "Sevilla", isCustomerVisible: false, myRealTripUrl: null },
 ];
+
+// 관리자가 새로 추가한 투어(전체 레코드, 자유롭게 수정·삭제 가능).
+export const ADDED_TOURS_STORAGE_KEY = "fmt-added-tours";
+// 표본 투어(SAMPLE_TOURS)는 상수라 직접 못 바꾸니, 수정한 내용(노출 여부·URL
+// 등)은 id -> 통째로 바뀐 투어 정보로 이 오버라이드 맵에 저장한다(직원 수정과
+// 같은 패턴).
+export const TOUR_EDITS_STORAGE_KEY = "fmt-tour-edits";
+// 표본 투어를 관리자가 삭제한 경우 여기에 id를 남긴다(2026-09-13 확인:
+// 삭제도 가능해야 함). 상수 배열 자체는 못 지우니 이 id 목록으로 걸러서
+// 목록·선택창에서 안 보이게 한다 — 이미 지난 일정·예약은 투어명을 문자열로
+// 따로 저장해두고 있어서 안 깨진다. "삭제한 투어" 섹션에서 다시 복구할 수
+// 있게, 완전히 지우지는 않고 목록에서만 뺀다.
+export const DELETED_TOUR_IDS_STORAGE_KEY = "fmt-deleted-tour-ids";
 
 const SEPTEMBER_TOUR_DEFAULTS: Array<{ tourId: string; tourName: string; startTime: string; capacity: number }> = [
   { tourId: "t1", tourName: "가우디 마스터패스 투어", startTime: "09:00", capacity: 29 },
@@ -90,6 +111,11 @@ export type Schedule = {
 // 관리자가 캘린더에서 빈 날짜에 "투어 오픈"으로 새로 만든 스케줄. 이 브라우저의
 // localStorage에 저장되고, SAMPLE_SCHEDULES와 합쳐서 보여준다.
 export const ADDED_SCHEDULES_STORAGE_KEY = "fmt-added-schedules";
+
+// 관리자가 배정 창에서 스케줄(그 날짜의 투어 하나)을 삭제한 경우 여기에
+// id를 남긴다(2026-09-13 확인: 예약자가 0명일 때만 삭제 가능). 표본
+// 스케줄은 상수라 못 지우니 이 id 목록으로 걸러서 안 보이게 한다.
+export const DELETED_SCHEDULE_IDS_STORAGE_KEY = "fmt-deleted-schedule-ids";
 
 // scheduleId -> 배정된 가이드 이름 목록(관리자가 배정 창에서 고친 값). 일정
 // 페이지와 가이드배정확인 페이지가 같은 키를 읽어서 같은 배정을 본다.

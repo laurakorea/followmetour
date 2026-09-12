@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StatusPill } from "@/components/status-pill";
 import {
   ADDED_RESERVATIONS_STORAGE_KEY,
+  DELETED_TOUR_IDS_STORAGE_KEY,
   RESERVATION_EDITS_STORAGE_KEY,
   SAMPLE_RESERVATIONS,
   SAMPLE_SCHEDULES,
@@ -100,13 +101,19 @@ export default function AdminReservationsPage() {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  // 투어 페이지(admin/tours)에서 관리자가 삭제한 투어 id — 새 예약을 추가할 때
+  // 투어명 선택지에서 삭제한 투어는 뺀다.
+  const [deletedTourIds, setDeletedTourIds] = useState<string[]>([]);
+  const selectableTours = useMemo(() => SAMPLE_TOURS.filter((t) => !deletedTourIds.includes(t.id)), [deletedTourIds]);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ADDED_RESERVATIONS_STORAGE_KEY);
       const savedEdits = localStorage.getItem(RESERVATION_EDITS_STORAGE_KEY);
+      const savedDeletedTourIds = localStorage.getItem(DELETED_TOUR_IDS_STORAGE_KEY);
       if (saved) setAddedReservations(JSON.parse(saved));
       if (savedEdits) setReservationEdits(JSON.parse(savedEdits));
+      if (savedDeletedTourIds) setDeletedTourIds(JSON.parse(savedDeletedTourIds));
     } catch {
       // 프라이빗 모드 등에서 localStorage를 막아둔 경우 — 빈 상태로 계속 진행
     } finally {
@@ -351,7 +358,7 @@ export default function AdminReservationsPage() {
                   onChange={(e) => updateField("tourId", e.target.value)}
                   className="rounded-sm border border-line px-2 py-1.5 text-sm focus:border-line-strong focus:outline-none"
                 >
-                  {SAMPLE_TOURS.map((t) => (
+                  {selectableTours.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
