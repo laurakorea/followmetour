@@ -24,10 +24,10 @@ function resolveScheduleId(tourId: string, date: string) {
   return match?.id ?? `${tourId}-${date}`;
 }
 
-const STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "neutral" }> = {
+const STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "info" | "neutral" }> = {
   pending: { label: "입금대기", tone: "warn" },
   confirmed: { label: "예약완료", tone: "good" },
-  completed: { label: "투어완료", tone: "good" },
+  completed: { label: "투어완료", tone: "info" },
   cancelled: { label: "예약취소", tone: "critical" },
 };
 
@@ -99,12 +99,18 @@ export default function AdminReservationsPage() {
   const [reservationEdits, setReservationEdits] = useState<Record<string, Reservation>>({});
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ReservationStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   // 투어 페이지(admin/tours)에서 관리자가 삭제한 투어 id — 새 예약을 추가할 때
   // 투어명 선택지에서 삭제한 투어는 뺀다.
   const [deletedTourIds, setDeletedTourIds] = useState<string[]>([]);
   const selectableTours = useMemo(() => SAMPLE_TOURS.filter((t) => !deletedTourIds.includes(t.id)), [deletedTourIds]);
+  // 일괄 상태 변경용 체크박스 선택 상태. (메일 일괄 전송은 도메인 인증 전이라
+  // 뺐다 — 2026-09-13 확인. 손님 확인은 예약 조회 페이지 쪽으로 갈 예정.)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<ReservationStatus>("confirmed");
+  const [bulkMessage, setBulkMessage] = useState("");
 
   useEffect(() => {
     try {
@@ -146,13 +152,62 @@ export default function AdminReservationsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allReservations;
-    return allReservations.filter((r) =>
-      [r.contactName, r.email, r.phone, r.tourName, r.partnerName ?? ""].some((field) =>
-        field.toLowerCase().includes(q),
-      ),
-    );
-  }, [allReservations, query]);
+    return allReservations
+      .filter((r) => statusFilter === "all" || r.status === statusFilter)
+      .filter(
+        (r) =>
+          !q ||
+          [r.contactName, r.email, r.phone, r.tourName, r.partnerName ?? ""].some((field) =>
+            field.toLowerCase().includes(q),
+          ),
+      );
+  }, [allReservations, query, statusFilter]);
+
+  // 상태별 탭에 건수를 같이 보여준다 — 검색어는 반영하지 않고(탭은 항상 전체
+  // 건수 기준), 상태 필터만 겹치지 않게 각각 센다.
+  const statusCounts = useMemo(() => {
+    const counts: Record<ReservationStatus, number> = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+    for (const r of allReservations) counts[r.status] += 1;
+    return counts;
+  }, [allReservations]);
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((r) => prev.has(r.id));
+      const next = new Set(prev);
+      if (allSelected) {
+        filtered.forEach((r) => next.delete(r.id));
+      } else {
+        filtered.forEach((r) => next.add(r.id));
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // 체크한 예약 전체의 상태를 한 번에 바꾼다 — 다른 필드는 그대로 두고
+  // 상태만 갈아끼운다.
+  function applyBulkStatus() {
+    if (selectedIds.size === 0) return;
+    setReservationEdits((prev) => {
+      const next = { ...prev };
+      for (const id of selectedIds) {
+        const current = allReservations.find((r) => r.id === id);
+        if (current) next[id] = { ...current, status: bulkStatus };
+      }
+      return next;
+    });
+    setBulkMessage(`${selectedIds.size}건을 "${STATUS_LABEL[bulkStatus].label}"(으)로 변경했습니다.`);
+    setTimeout(() => setBulkMessage(""), 4000);
+  }
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -244,6 +299,30 @@ export default function AdminReservationsPage() {
         <p className="text-xs text-ink-500">예시 데이터 · 자사·파트너 통합</p>
       </div>
 
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={`rounded-full border px-3 py-1 text-xs ${
+            statusFilter === "all" ? "border-rose-600 bg-rose-600 text-white" : "border-line text-ink-700 hover:bg-paper"
+          }`}
+        >
+          전체 ({allReservations.length})
+        </button>
+        {(Object.keys(STATUS_LABEL) as ReservationStatus[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setStatusFilter(key)}
+            className={`rounded-full border px-3 py-1 text-xs ${
+              statusFilter === key ? "border-rose-600 bg-rose-600 text-white" : "border-line text-ink-700 hover:bg-paper"
+            }`}
+          >
+            {STATUS_LABEL[key].label} ({statusCounts[key]})
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-2">
         <input
           type="text"
@@ -257,10 +336,44 @@ export default function AdminReservationsPage() {
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-paper p-2.5">
+        <span className="whitespace-nowrap text-xs font-medium text-ink-700">{selectedIds.size}건 선택됨</span>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={bulkStatus}
+            onChange={(e) => setBulkStatus(e.target.value as ReservationStatus)}
+            className="rounded-sm border border-line bg-surface px-2 py-1.5 text-xs focus:border-line-strong focus:outline-none"
+          >
+            {(Object.keys(STATUS_LABEL) as ReservationStatus[]).map((key) => (
+              <option key={key} value={key}>
+                {STATUS_LABEL[key].label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={applyBulkStatus}
+            disabled={selectedIds.size === 0}
+            className="whitespace-nowrap rounded-sm bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            일괄 상태 변경
+          </button>
+        </div>
+        {bulkMessage && <p className="text-xs text-good">{bulkMessage}</p>}
+      </div>
+
       <div className="overflow-x-auto rounded-md border border-line">
         <table className="w-full min-w-[1150px] text-sm">
           <thead>
             <tr className="whitespace-nowrap bg-paper text-left font-mono text-xs tracking-wide text-ink-500 uppercase">
+              <th className="px-3 py-2 font-medium">
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id))}
+                  onChange={toggleSelectAll}
+                  className="h-3.5 w-3.5 accent-rose-600"
+                />
+              </th>
               <th className="px-4 py-2 font-medium">상태</th>
               <th className="px-4 py-2 font-medium">채널</th>
               <th className="px-4 py-2 font-medium">투어</th>
@@ -278,7 +391,7 @@ export default function AdminReservationsPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-6 text-center text-sm text-ink-500">
+                <td colSpan={13} className="px-4 py-6 text-center text-sm text-ink-500">
                   검색 결과가 없습니다.
                 </td>
               </tr>
@@ -291,6 +404,14 @@ export default function AdminReservationsPage() {
                     onClick={() => openEditForm(r)}
                     className="cursor-pointer whitespace-nowrap border-t border-line hover:bg-rose-100"
                   >
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleSelectOne(r.id)}
+                        className="h-3.5 w-3.5 accent-rose-600"
+                      />
+                    </td>
                     <td className="px-4 py-2.5">
                       <StatusPill tone={status.tone}>{status.label}</StatusPill>
                     </td>

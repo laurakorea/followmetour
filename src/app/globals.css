@@ -27,6 +27,8 @@
   --warn-wash: #f5ebd8;
   --critical: #c2410c;
   --critical-wash: #fbe8de;
+  --info: #6d4fc2;
+  --info-wash: #ece7f9;
 
   /* radius */
   --radius-sm: 8px;
@@ -53,6 +55,8 @@
   --color-warn-wash: var(--warn-wash);
   --color-critical: var(--critical);
   --color-critical-wash: var(--critical-wash);
+  --color-info: var(--info);
+  --color-info-wash: var(--info-wash);
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

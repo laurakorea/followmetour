@@ -44,10 +44,10 @@ const EMPTY_MISC_ITEM: MiscItem = { label: "", amount: "" };
 // (2026-09-13 확인). ticketItems는 그 🎫 표시 계산에만 쓴다.
 type TicketItem = { label: string; checked: boolean; note: string };
 
-const RESERVATION_STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "neutral" }> = {
+const RESERVATION_STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "info" | "neutral" }> = {
   pending: { label: "입금대기", tone: "warn" },
   confirmed: { label: "예약완료", tone: "good" },
-  completed: { label: "투어완료", tone: "good" },
+  completed: { label: "투어완료", tone: "info" },
   cancelled: { label: "예약취소", tone: "critical" },
 };
 

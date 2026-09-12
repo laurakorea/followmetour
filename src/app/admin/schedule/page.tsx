@@ -42,10 +42,10 @@ function sumTicketNote(note: string) {
 }
 
 // 예약 페이지(admin/reservations)와 같은 상태 라벨 — 명단보기에서 같은 어휘로 보여준다.
-const RESERVATION_STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "neutral" }> = {
+const RESERVATION_STATUS_LABEL: Record<ReservationStatus, { label: string; tone: "good" | "warn" | "critical" | "info" | "neutral" }> = {
   pending: { label: "입금대기", tone: "warn" },
   confirmed: { label: "예약완료", tone: "good" },
-  completed: { label: "투어완료", tone: "good" },
+  completed: { label: "투어완료", tone: "info" },
   cancelled: { label: "예약취소", tone: "critical" },
 };
 

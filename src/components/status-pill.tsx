@@ -2,6 +2,7 @@ const TONES = {
   good: "bg-good-wash text-good",
   warn: "bg-warn-wash text-warn",
   critical: "bg-critical-wash text-critical",
+  info: "bg-info-wash text-info",
   neutral: "bg-line text-ink-700",
 } as const;
 
